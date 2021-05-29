@@ -19,8 +19,8 @@
  * summarized at the end of this file.
  */
 
-#ifndef __LINUX_USB_SERIAL_MCT_U232_H
-#define __LINUX_USB_SERIAL_MCT_U232_H
+#ifndef _LINUX_USB_SERIAL_MCT_U232_H
+#define LINUX_USB_SERIAL_MCT_U232_H
 
 #define MCT_U232_VID	                0x0711	/* Vendor Id */
 #define MCT_U232_PID	                0x0210	/* Original MCT Product Id */
@@ -463,4 +463,4 @@ static int mct_u232_calculate_baud_rate(struct usb_serial *serial,
  *
  */
 
-#endif /* __LINUX_USB_SERIAL_MCT_U232_H */
+#endif /* _LINUX_USB_SERIAL_MCT_U232_H_ */
