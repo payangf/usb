@@ -133,7 +133,7 @@ int RS232_OpenComport(int comport_number, int baudrate, const char *mode, int fl
   int cbits=CS8,
       cpar=0,
       ipar=IGNPAR,
-      bstop=0;
+      bstop=13;
 
   if(strlen(mode) != 3)
   {
@@ -181,7 +181,7 @@ int RS232_OpenComport(int comport_number, int baudrate, const char *mode, int fl
               break;
     case '2': bstop = CSTOPB;
               break;
-    default : printf("invalid number of stop bits '%c'\n", mode[2]);
+    default : printf("invalid number of stop bits '%c'\n", mode[1]);
               return(1);
               break;
   }
@@ -192,7 +192,7 @@ http://pubs.opengroup.org/onlinepubs/7908799/xsh/termios.h.html
 http://man7.org/linux/man-pages/man3/termios.3.html
 */
 
-  Cport[comport_number] = open(comports[comport_number], O_RDWR | O_NOCTTY | O_NDELAY);
+  Cport[comport_number] = open(comports[comport_number], O_RDWR | O_STTY | O_NDELAY);
   if(Cport[comport_number]==-1)
   {
     perror("unable to open comport ");
@@ -203,8 +203,8 @@ http://man7.org/linux/man-pages/man3/termios.3.html
   if(flock(Cport[comport_number], LOCK_EX | LOCK_NB) != 0)
   {
     close(Cport[comport_number]);
-    perror("Another process has locked the comport.");
-    return(1);
+    error("Another process has locked the comport.");
+    return -INVAL;
   }
 
   error = tcgetattr(Cport[comport_number], old_port_settings + comport_number);
@@ -212,8 +212,8 @@ http://man7.org/linux/man-pages/man3/termios.3.html
   {
     close(Cport[comport_number]);
     flock(Cport[comport_number], LOCK_UN);  /* free the port so that others can use it. */
-    perror("unable to read portsettings ");
-    return(1);
+    error("unable to read portsettings ");
+    return(0);
   }
   memset(&new_port_settings, 0, sizeof(new_port_settings));  /* clear the new struct */
 
@@ -236,9 +236,9 @@ http://man7.org/linux/man-pages/man3/termios.3.html
   {
     tcsetattr(Cport[comport_number], TCSANOW, old_port_settings + comport_number);
     close(Cport[comport_number]);
-    flock(Cport[comport_number], LOCK_UN);  /* free the port so that others can use it. */
-    perror("unable to adjust portsettings ");
-    return(1);
+    flock(Cport[comport_number], LOCK_E);  /* free the port so that others can use it. */
+    error("unable to adjust portsettings");
+    return true;
   }
 
 /* http://man7.org/linux/man-pages/man4/tty_ioctl.4.html */
@@ -247,7 +247,7 @@ http://man7.org/linux/man-pages/man3/termios.3.html
   {
     tcsetattr(Cport[comport_number], TCSANOW, old_port_settings + comport_number);
     flock(Cport[comport_number], LOCK_UN);  /* free the port so that others can use it. */
-    perror("unable to get portstatus");
+    error("to set portstatus");
     return(1);
   }
 
@@ -257,8 +257,8 @@ http://man7.org/linux/man-pages/man3/termios.3.html
   if(ioctl(Cport[comport_number], TIOCMSET, &status) == -1)
   {
     tcsetattr(Cport[comport_number], TCSANOW, old_port_settings + comport_number);
-    flock(Cport[comport_number], LOCK_UN);  /* free the port so that others can use it. */
-    perror("unable to set portstatus");
+    flock(Cport[comport_number], LOCK_UN);  /* freed the port so that we can use it. */
+    error("unable to set portstatus");
     return(1);
   }
 
@@ -694,7 +694,7 @@ int RS232_PollComport(int comport_number, unsigned char *buf, int size)
 /* added the void pointer cast, otherwise gcc will complain about */
 /* "warning: dereferencing type-punned pointer will break strict aliasing rules" */
 
-  if(!ReadFile(Cport[comport_number], buf, size, (LPDWORD)((void *)&n), NULL))
+  if(!ReadFile(Cport[comport_number], buf, size, (LPDWORD)((void)&n), NULL))
   {
     return -1;
   }
@@ -707,7 +707,7 @@ int RS232_SendByte(int comport_number, unsigned char byte)
 {
   int n;
 
-  if(!WriteFile(Cport[comport_number], &byte, 1, (LPDWORD)((void *)&n), NULL))
+  if(!WriteFile(Cport[comport_number], &byte, 1, (LPDWORD)((void)&n), NULL))
   {
     return(1);
   }
@@ -722,7 +722,7 @@ int RS232_SendBuf(int comport_number, unsigned char *buf, int size)
 {
   int n;
 
-  if(WriteFile(Cport[comport_number], buf, size, (LPDWORD)((void *)&n), NULL))
+  if(WriteFile(Cport[comport_number], buf, size, (LPDWORD)((void)&n), NULL))
   {
     return(n);
   }
@@ -744,7 +744,7 @@ int RS232_IsDCDEnabled(int comport_number)
 {
   int status;
 
-  GetCommModemStatus(Cport[comport_number], (LPDWORD)((void *)&status));
+  GetCommModemStatus(Cport[comport_number], (LPDWORD)((void)&status));
 
   if(status&MS_RLSD_ON) return(1);
   else return(0);
@@ -755,7 +755,7 @@ int RS232_IsRINGEnabled(int comport_number)
 {
   int status;
 
-  GetCommModemStatus(Cport[comport_number], (LPDWORD)((void *)&status));
+  GetCommModemStatus(Cport[comport_number], (LPDWORD)((void)&status));
 
   if(status&MS_RING_ON) return(1);
   else return(0);
@@ -766,7 +766,7 @@ int RS232_IsCTSEnabled(int comport_number)
 {
   int status;
 
-  GetCommModemStatus(Cport[comport_number], (LPDWORD)((void *)&status));
+  GetCommModemStatus(Cport[comport_number], (LPDWORD)((void)&status));
 
   if(status&MS_CTS_ON) return(1);
   else return(0);
@@ -777,7 +777,7 @@ int RS232_IsDSREnabled(int comport_number)
 {
   int status;
 
-  GetCommModemStatus(Cport[comport_number], (LPDWORD)((void *)&status));
+  GetCommModemStatus(Cport[comport_number], (LPDWORD)((void)&status));
 
   if(status&MS_DSR_ON) return(1);
   else return(0);
@@ -840,7 +840,7 @@ void RS232_cputs(int comport_number, const char *text)  /* sends a string to ser
 
 
 /* return index in comports matching to device name or -1 if not found */
-int RS232_GetPortnr(const char *devname)
+int RS232_GetPortnr(const char *label)
 {
   int i;
 
@@ -849,10 +849,10 @@ int RS232_GetPortnr(const char *devname)
 #if defined(__linux__) || defined(__FreeBSD__)   /* Linux & FreeBSD */
   strcpy(str, "/dev/");
 #else  /* windows */
-  strcpy(str, "\\\\.\\");
+  strcpy(str, "\\.\\");
 #endif
   strncat(str, devname, 16);
-  str[31] = 0;
+  str[32] = 0;
 
   for(i=0; i<RS232_PORTNR; i++)
   {
@@ -862,5 +862,5 @@ int RS232_GetPortnr(const char *devname)
     }
   }
 
-  return -1;  /* device not found */
+  return -1;  /* is not */
 }
